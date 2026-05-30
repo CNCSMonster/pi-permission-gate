@@ -217,12 +217,36 @@ Explicitly request user permission before a risky operation. Use this when the a
 - `command`: The exact command or file path
 - `reason`: Why this operation is needed
 
-## Dependencies
+## Development
 
-- `minimatch`: Glob pattern matching
-- `@mariozechner/pi-coding-agent`: Pi extension API
-- `typebox`: Schema definitions
+### Quick Setup (New Machine)
 
-## License
+```bash
+git clone https://github.com/CNCSMonster/pi-permission-gate ~/my-programs/pi-permission-gate
+cd ~/my-programs/pi-permission-gate
+./scripts/dev-setup.sh
+```
 
-MIT
+### Dev Loop
+
+```bash
+# 1. Edit code
+vim extensions/permission-gate-enhanced.ts
+
+# 2. Reload in pi
+/reload
+
+# 3. Test
+# ...
+
+# 4. Commit
+git add -A && git commit -m "feat: xxx" && git push
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for more details.
+
+## GitHub
+
+[CNCSMonster/pi-permission-gate](https://github.com/CNCSMonster/pi-permission-gate)
+
+MIT licensed. Feedback welcome.
