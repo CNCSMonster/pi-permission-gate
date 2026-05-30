@@ -36,17 +36,19 @@ It is **not** an AI-powered security analyzer and not a sandbox.
 
 ## Installation
 
-### From npm
-
-```bash
-pi install npm:pi-permission-gate
-```
-
 ### From GitHub (Recommended)
 
 ```bash
 pi install git:github.com/CNCSMonster/pi-permission-gate
 ```
+
+### From npm (coming soon)
+
+> Not yet published to npm. Use GitHub installation for now.
+>
+> ```bash
+> pi install npm:pi-permission-gate
+> ```
 
 ### From local path (development)
 
