@@ -32,6 +32,7 @@ It is **not** an AI-powered security analyzer and not a sandbox.
 - **Hot reload** — Config changes take effect immediately without restarting pi.
 - **Chinese UI** — Confirmation dialogs in Chinese.
 - **Three action modes** — `allow`, `deny`, `ask` for flexible control.
+- **Manual permission request** — Built-in `request_permission` tool for explicit permission requests.
 
 ## Installation
 
@@ -41,10 +42,10 @@ It is **not** an AI-powered security analyzer and not a sandbox.
 pi install npm:pi-permission-gate
 ```
 
-### From GitHub
+### From GitHub (Recommended)
 
 ```bash
-pi install git:github.com/yourname/pi-permission-gate
+pi install git:github.com/CNCSMonster/pi-permission-gate
 ```
 
 ### From local path (development)
@@ -202,6 +203,17 @@ Rule action = deny → deny
     ↓
 Rule action = ask → check memory → prompt user
 ```
+
+## Built-in Tools
+
+### `request_permission`
+
+Explicitly request user permission before a risky operation. Use this when the agent wants to confirm a potentially dangerous action.
+
+**Parameters:**
+- `operation`: Description of the operation
+- `command`: The exact command or file path
+- `reason`: Why this operation is needed
 
 ## Dependencies
 
