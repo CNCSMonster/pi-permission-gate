@@ -1,0 +1,39 @@
+{
+  "rules": [
+    {
+      "tools": ["read", "bash"],
+      "pathPattern": "**/.pi/agent/sessions/**",
+      "label": "历史会话文件"
+    },
+    {
+      "tools": ["read"],
+      "pathPattern": "**/.ssh/**",
+      "label": "SSH 私钥和配置"
+    },
+    {
+      "tools": ["read"],
+      "pathPattern": "**/.env*",
+      "label": "环境变量文件"
+    },
+    {
+      "tools": ["read"],
+      "pathPattern": "**/.gitconfig",
+      "label": "Git 全局配置"
+    },
+    {
+      "tools": ["read"],
+      "pathPattern": "**/.git-credentials",
+      "label": "Git 凭据文件"
+    },
+    {
+      "tools": ["read", "edit", "write"],
+      "pathPattern": "**/.pi/agent/auth.json",
+      "label": "Pi 认证凭据"
+    },
+    {
+      "tools": ["bash"],
+      "pathPattern": "**/rm -rf *",
+      "label": "递归删除操作"
+    }
+  ]
+}

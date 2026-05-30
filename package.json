@@ -1,0 +1,18 @@
+{
+  "name": "pi-permission-gate",
+  "version": "1.0.0",
+  "description": "Rule-based permission gate extension for the Pi coding agent — intercept sensitive file operations and dangerous commands with configurable rules and trusted paths.",
+  "keywords": ["pi-package", "pi-extension", "security", "permissions", "access-control"],
+  "author": "CNCSMonster",
+  "license": "MIT",
+  "pi": {
+    "extensions": ["./extensions"]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "dependencies": {
+    "minimatch": "^10.0.0"
+  }
+}
