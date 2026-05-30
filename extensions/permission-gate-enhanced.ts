@@ -281,7 +281,8 @@ export default function (pi: ExtensionAPI) {
 			return { block: true, reason: `已拒绝: ${rule.label}` };
 		}
 
-		const key = `${event.toolName}:${rule.pathPattern}`;
+		// key 包含当前工作目录，实现项目级权限隔离
+		const key = `${currentCwd}:${event.toolName}:${rule.pathPattern}`;
 
 		// 检查是否有持久化权限
 		const existing = permissions.find((p) => p.pattern === key);
@@ -338,7 +339,8 @@ export default function (pi: ExtensionAPI) {
 			}),
 		}),
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			const key = `manual:${params.command}`;
+			// key 包含当前工作目录，实现项目级权限隔离
+			const key = `${currentCwd}:manual:${params.command}`;
 			const existing = permissions.find((p) => p.pattern === key);
 			if (existing?.action === "allow") {
 				return { content: [{ type: "text", text: "已自动批准（记忆）" }] };
