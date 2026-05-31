@@ -255,6 +255,10 @@ export default function (pi: ExtensionAPI) {
 	// ── tool_call 拦截器：规则匹配 ──────────────────────────────────
 
 	pi.on("tool_call", async (event, ctx) => {
+		// 调试日志
+		console.error(`[PermissionGate] tool_call: ${event.toolName}, input: ${JSON.stringify(event.input)}`);
+		console.error(`[PermissionGate] currentCwd: ${currentCwd}, rules count: ${rules.length}`);
+		
 		// 跳过 request_permission 工具本身
 		if (event.toolName === "request_permission") return;
 
@@ -265,17 +269,22 @@ export default function (pi: ExtensionAPI) {
 		} else if (event.toolName === "read" || event.toolName === "edit" || event.toolName === "write") {
 			targetPath = event.input.path as string | undefined;
 		}
+		
+		console.error(`[PermissionGate] targetPath: ${targetPath}`);
 
 		// 检查是否在信任目录中
 		if (targetPath && isInTrustedPath(targetPath, trustedPaths)) {
+			console.error(`[PermissionGate] trusted path, allowing`);
 			return; // 信任目录，直接放行
 		}
 
 		// 查找匹配的规则
 		const rule = findMatchingRule(event.toolName, event.input, rules);
+		console.error(`[PermissionGate] matched rule: ${rule ? rule.label : "null"}`);
 		
 		// 如果没有匹配的规则，使用默认动作
 		if (!rule) {
+			console.error(`[PermissionGate] no rule matched, defaultAction: ${defaultAction}`);
 			switch (defaultAction) {
 				case "allow":
 					return; // 放行
@@ -296,8 +305,12 @@ export default function (pi: ExtensionAPI) {
 		}
 
 		// 如果规则指定了直接动作
-		if (rule.action === "allow") return;
+		if (rule.action === "allow") {
+			console.error(`[PermissionGate] rule action=allow, allowing`);
+			return;
+		}
 		if (rule.action === "deny") {
+			console.error(`[PermissionGate] rule action=deny, blocking`);
 			return { block: true, reason: `已拒绝: ${rule.label}` };
 		}
 
@@ -306,8 +319,12 @@ export default function (pi: ExtensionAPI) {
 
 		// 检查是否有持久化权限
 		const existing = permissions.find((p) => p.pattern === key);
-		if (existing?.action === "allow") return;
+		if (existing?.action === "allow") {
+			console.error(`[PermissionGate] remembered allow`);
+			return;
+		}
 		if (existing?.action === "deny") {
+			console.error(`[PermissionGate] remembered deny`);
 			return { block: true, reason: `已拒绝: ${rule.label}` };
 		}
 
@@ -316,11 +333,14 @@ export default function (pi: ExtensionAPI) {
 			return { block: true, reason: "无 UI 模式，敏感操作已拒绝" };
 		}
 
+		console.error(`[PermissionGate] showing UI prompt...`);
 		const choice = await ctx.ui.select(
 			`⚠️ 敏感操作 — ${rule.label}\n\n规则: ${rule.pathPattern}\n工具: ${event.toolName}\n目标: ${targetPath || "未知"}\n\n允许吗？`,
 			["允许本次", "始终允许", "拒绝本次", "始终拒绝"],
 		);
 
+		console.error(`[PermissionGate] user choice: ${choice}`);
+		
 		switch (choice) {
 			case "始终允许": {
 				permissions.push({ pattern: key, action: "allow" });
