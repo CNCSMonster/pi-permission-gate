@@ -182,6 +182,15 @@ function findMatchingRule(
 // ── Extension entry ───────────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
+	// 辅助函数：添加或覆盖权限记录
+	function setPermission(pattern: string, action: "allow" | "deny", scope: "project" | "global") {
+		const idx = permissions.findIndex((p) => p.pattern === pattern);
+		if (idx >= 0) {
+			permissions[idx] = { pattern, action, scope };
+		} else {
+			permissions.push({ pattern, action, scope });
+		}
+	}
 	// 运行时状态
 	let currentCwd = "";
 	let rules: PermissionRule[] = [];
@@ -348,14 +357,14 @@ export default function (pi: ExtensionAPI) {
 		
 		switch (choice) {
 			case "始终允许（本项目）": {
-				permissions.push({ pattern: projectKey, action: "allow", scope: "project" });
+				setPermission(projectKey, "allow", "project");
 				return {
 					content: [{ type: "text", text: `权限已授予并记住（本项目）: ${rule.label}` }],
 					details: { decision: "allow", permissions: [...permissions] },
 				};
 			}
 			case "始终允许（全局）": {
-				permissions.push({ pattern: globalKey, action: "allow", scope: "global" });
+				setPermission(globalKey, "allow", "global");
 				return {
 					content: [{ type: "text", text: `权限已授予并记住（全局）: ${rule.label}` }],
 					details: { decision: "allow", permissions: [...permissions] },
@@ -364,11 +373,11 @@ export default function (pi: ExtensionAPI) {
 			case "允许本次":
 				return; // 直接放行
 			case "始终拒绝（本项目）": {
-				permissions.push({ pattern: projectKey, action: "deny", scope: "project" });
+				setPermission(projectKey, "deny", "project");
 				return { block: true, reason: `已拒绝并记住（本项目）: ${rule.label}` };
 			}
 			case "始终拒绝（全局）": {
-				permissions.push({ pattern: globalKey, action: "deny", scope: "global" });
+				setPermission(globalKey, "deny", "global");
 				return { block: true, reason: `已拒绝并记住（全局）: ${rule.label}` };
 			}
 			default:
@@ -420,14 +429,14 @@ export default function (pi: ExtensionAPI) {
 
 			switch (choice) {
 				case "始终允许（本项目）": {
-					permissions.push({ pattern: projectKey, action: "allow", scope: "project" });
+					setPermission(projectKey, "allow", "project");
 					return {
 						content: [{ type: "text", text: "已批准并记住（本项目）" }],
 						details: { decision: "allow", permissions: [...permissions] },
 					};
 				}
 				case "始终允许（全局）": {
-					permissions.push({ pattern: globalKey, action: "allow", scope: "global" });
+					setPermission(globalKey, "allow", "global");
 					return {
 						content: [{ type: "text", text: "已批准并记住（全局）" }],
 						details: { decision: "allow", permissions: [...permissions] },
@@ -436,14 +445,14 @@ export default function (pi: ExtensionAPI) {
 				case "允许本次":
 					return { content: [{ type: "text", text: "已批准本次" }], details: { decision: "allow" } };
 				case "始终拒绝（本项目）": {
-					permissions.push({ pattern: projectKey, action: "deny", scope: "project" });
+					setPermission(projectKey, "deny", "project");
 					return {
 						content: [{ type: "text", text: "已拒绝并记住（本项目）" }],
 						details: { decision: "deny", permissions: [...permissions] },
 					};
 				}
 				case "始终拒绝（全局）": {
-					permissions.push({ pattern: globalKey, action: "deny", scope: "global" });
+					setPermission(globalKey, "deny", "global");
 					return {
 						content: [{ type: "text", text: "已拒绝并记住（全局）" }],
 						details: { decision: "deny", permissions: [...permissions] },
@@ -452,6 +461,76 @@ export default function (pi: ExtensionAPI) {
 				default:
 					return { content: [{ type: "text", text: "已拒绝" }], details: { decision: "deny" } };
 			}
+		},
+	});
+
+	// ── 权限管理命令 ──────────────────────────────────────────────
+
+	pi.registerCommand("permission-list", {
+		description: "查看已记忆的权限列表",
+		handler: async (_args, ctx) => {
+			if (permissions.length === 0) {
+				ctx.ui.notify("暂无已记忆的权限", "info");
+				return;
+			}
+
+			const items: string[] = ["=== 已记忆的权限 ==="];
+			for (const p of permissions) {
+				const actionText = p.action === "allow" ? "✅ 允许" : "❌ 拒绝";
+				const scopeText = p.scope === "global" ? "【全局】" : "【项目】";
+				items.push(`${actionText} ${scopeText} ${p.pattern}`);
+			}
+
+			const selected = await ctx.ui.select("权限列表", items);
+			if (selected && selected !== "=== 已记忆的权限 ===") {
+				const pattern = selected.replace(/^[^【]*【/g, "").replace(/】/g, "").trim();
+				const idx = permissions.findIndex((p) => p.pattern === pattern);
+				if (idx >= 0) {
+					const p = permissions[idx];
+					const remove = await ctx.ui.confirm(
+						"删除权限",
+						`删除这条权限记录？\n${p.pattern}\n${p.action === "allow" ? "允许" : "拒绝"} (${p.scope})`,
+					);
+					if (remove) {
+						permissions.splice(idx, 1);
+						ctx.ui.notify("权限已删除", "success");
+					}
+				}
+			}
+		},
+	});
+
+	pi.registerCommand("permission-reset", {
+		description: "清除已记忆的权限 (all/project/global)",
+		getArgumentCompletions: (prefix) => {
+			const options = ["all", "project", "global"];
+			const filtered = options.filter((o) => o.startsWith(prefix));
+			return filtered.length > 0 ? filtered.map((o) => ({ value: o, label: o })) : null;
+		},
+		handler: async (args, ctx) => {
+			const scope = args.trim() as "all" | "project" | "global" | "";
+			if (!scope) {
+				ctx.ui.notify("用法: /permission-reset all|project|global", "warning");
+				return;
+			}
+
+			let removed = 0;
+			if (scope === "all") {
+				removed = permissions.length;
+				permissions.length = 0;
+			} else {
+				for (let i = permissions.length - 1; i >= 0; i--) {
+					if (scope === "project" && permissions[i].scope === "project") {
+						permissions.splice(i, 1);
+						removed++;
+					} else if (scope === "global" && permissions[i].scope === "global") {
+						permissions.splice(i, 1);
+						removed++;
+					}
+				}
+			}
+
+			ctx.ui.notify(`已清除 ${removed} 条${scope === "all" ? "" : scope}权限记录`, "success");
 		},
 	});
 }
