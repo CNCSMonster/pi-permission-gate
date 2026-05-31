@@ -37,6 +37,7 @@ interface PermissionRulesFile {
 interface Permission {
 	pattern: string;
 	action: "allow" | "deny";
+	scope: "project" | "global";
 }
 
 // ── 配置文件路径 ──────────────────────────────────────────────────────
@@ -314,17 +315,21 @@ export default function (pi: ExtensionAPI) {
 			return { block: true, reason: `已拒绝: ${rule.label}` };
 		}
 
-		// key 包含当前工作目录，实现项目级权限隔离
-		const key = `${currentCwd}:${event.toolName}:${rule.pathPattern}`;
+		// 构建权限 key
+		const projectKey = `${currentCwd}:${event.toolName}:${rule.pathPattern}`;
+		const globalKey = `global:${event.toolName}:${rule.pathPattern}`;
 
-		// 检查是否有持久化权限
-		const existing = permissions.find((p) => p.pattern === key);
+		// 检查是否有持久化权限（项目级优先）
+		const existingProject = permissions.find((p) => p.pattern === projectKey);
+		const existingGlobal = permissions.find((p) => p.pattern === globalKey);
+		const existing = existingProject || existingGlobal;
+		
 		if (existing?.action === "allow") {
-			console.error(`[PermissionGate] remembered allow`);
+			console.error(`[PermissionGate] remembered allow (${existing.scope})`);
 			return;
 		}
 		if (existing?.action === "deny") {
-			console.error(`[PermissionGate] remembered deny`);
+			console.error(`[PermissionGate] remembered deny (${existing.scope})`);
 			return { block: true, reason: `已拒绝: ${rule.label}` };
 		}
 
@@ -336,24 +341,35 @@ export default function (pi: ExtensionAPI) {
 		console.error(`[PermissionGate] showing UI prompt...`);
 		const choice = await ctx.ui.select(
 			`⚠️ 敏感操作 — ${rule.label}\n\n规则: ${rule.pathPattern}\n工具: ${event.toolName}\n目标: ${targetPath || "未知"}\n\n允许吗？`,
-			["允许本次", "始终允许", "拒绝本次", "始终拒绝"],
+			["允许本次", "始终允许（本项目）", "始终允许（全局）", "拒绝本次", "始终拒绝（本项目）", "始终拒绝（全局）"],
 		);
 
 		console.error(`[PermissionGate] user choice: ${choice}`);
 		
 		switch (choice) {
-			case "始终允许": {
-				permissions.push({ pattern: key, action: "allow" });
+			case "始终允许（本项目）": {
+				permissions.push({ pattern: projectKey, action: "allow", scope: "project" });
 				return {
-					content: [{ type: "text", text: `权限已授予并记住: ${rule.label}` }],
+					content: [{ type: "text", text: `权限已授予并记住（本项目）: ${rule.label}` }],
+					details: { decision: "allow", permissions: [...permissions] },
+				};
+			}
+			case "始终允许（全局）": {
+				permissions.push({ pattern: globalKey, action: "allow", scope: "global" });
+				return {
+					content: [{ type: "text", text: `权限已授予并记住（全局）: ${rule.label}` }],
 					details: { decision: "allow", permissions: [...permissions] },
 				};
 			}
 			case "允许本次":
 				return; // 直接放行
-			case "始终拒绝": {
-				permissions.push({ pattern: key, action: "deny" });
-				return { block: true, reason: `已拒绝并记住: ${rule.label}` };
+			case "始终拒绝（本项目）": {
+				permissions.push({ pattern: projectKey, action: "deny", scope: "project" });
+				return { block: true, reason: `已拒绝并记住（本项目）: ${rule.label}` };
+			}
+			case "始终拒绝（全局）": {
+				permissions.push({ pattern: globalKey, action: "deny", scope: "global" });
+				return { block: true, reason: `已拒绝并记住（全局）: ${rule.label}` };
 			}
 			default:
 				return { block: true, reason: "用户拒绝本次操作" };
@@ -379,14 +395,18 @@ export default function (pi: ExtensionAPI) {
 			}),
 		}),
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			// key 包含当前工作目录，实现项目级权限隔离
-			const key = `${currentCwd}:manual:${params.command}`;
-			const existing = permissions.find((p) => p.pattern === key);
+			// key 支持项目级和全局级
+			const projectKey = `${currentCwd}:manual:${params.command}`;
+			const globalKey = `global:manual:${params.command}`;
+			const existingProject = permissions.find((p) => p.pattern === projectKey);
+			const existingGlobal = permissions.find((p) => p.pattern === globalKey);
+			const existing = existingProject || existingGlobal;
+			
 			if (existing?.action === "allow") {
-				return { content: [{ type: "text", text: "已自动批准（记忆）" }], details: { decision: "allow" } };
+				return { content: [{ type: "text", text: `已自动批准（记忆-${existing.scope}）` }], details: { decision: "allow" } };
 			}
 			if (existing?.action === "deny") {
-				return { content: [{ type: "text", text: "已自动拒绝（记忆）" }], details: { decision: "deny" } };
+				return { content: [{ type: "text", text: `已自动拒绝（记忆-${existing.scope}）` }], details: { decision: "deny" } };
 			}
 
 			if (!ctx.hasUI) {
@@ -395,23 +415,37 @@ export default function (pi: ExtensionAPI) {
 
 			const choice = await ctx.ui.select(
 				`⚠️ 请求权限\n\n操作: ${params.operation}\n命令: ${params.command}\n原因: ${params.reason}\n\n允许吗？`,
-				["允许本次", "始终允许", "拒绝本次", "始终拒绝"],
+				["允许本次", "始终允许（本项目）", "始终允许（全局）", "拒绝本次", "始终拒绝（本项目）", "始终拒绝（全局）"],
 			);
 
 			switch (choice) {
-				case "始终允许": {
-					permissions.push({ pattern: key, action: "allow" });
+				case "始终允许（本项目）": {
+					permissions.push({ pattern: projectKey, action: "allow", scope: "project" });
 					return {
-						content: [{ type: "text", text: "已批准并记住" }],
+						content: [{ type: "text", text: "已批准并记住（本项目）" }],
+						details: { decision: "allow", permissions: [...permissions] },
+					};
+				}
+				case "始终允许（全局）": {
+					permissions.push({ pattern: globalKey, action: "allow", scope: "global" });
+					return {
+						content: [{ type: "text", text: "已批准并记住（全局）" }],
 						details: { decision: "allow", permissions: [...permissions] },
 					};
 				}
 				case "允许本次":
 					return { content: [{ type: "text", text: "已批准本次" }], details: { decision: "allow" } };
-				case "始终拒绝": {
-					permissions.push({ pattern: key, action: "deny" });
+				case "始终拒绝（本项目）": {
+					permissions.push({ pattern: projectKey, action: "deny", scope: "project" });
 					return {
-						content: [{ type: "text", text: "已拒绝并记住" }],
+						content: [{ type: "text", text: "已拒绝并记住（本项目）" }],
+						details: { decision: "deny", permissions: [...permissions] },
+					};
+				}
+				case "始终拒绝（全局）": {
+					permissions.push({ pattern: globalKey, action: "deny", scope: "global" });
+					return {
+						content: [{ type: "text", text: "已拒绝并记住（全局）" }],
 						details: { decision: "deny", permissions: [...permissions] },
 					};
 				}
