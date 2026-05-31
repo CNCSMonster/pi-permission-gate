@@ -363,14 +363,14 @@ export default function (pi: ExtensionAPI) {
 			const key = `${currentCwd}:manual:${params.command}`;
 			const existing = permissions.find((p) => p.pattern === key);
 			if (existing?.action === "allow") {
-				return { content: [{ type: "text", text: "已自动批准（记忆）" }] };
+				return { content: [{ type: "text", text: "已自动批准（记忆）" }], details: { decision: "allow" } };
 			}
 			if (existing?.action === "deny") {
-				return { content: [{ type: "text", text: "已自动拒绝（记忆）" }] };
+				return { content: [{ type: "text", text: "已自动拒绝（记忆）" }], details: { decision: "deny" } };
 			}
 
 			if (!ctx.hasUI) {
-				return { content: [{ type: "text", text: "已拒绝（无 UI）" }] };
+				return { content: [{ type: "text", text: "已拒绝（无 UI）" }], details: { decision: "deny" } };
 			}
 
 			const choice = await ctx.ui.select(
@@ -387,7 +387,7 @@ export default function (pi: ExtensionAPI) {
 					};
 				}
 				case "允许本次":
-					return { content: [{ type: "text", text: "已批准本次" }] };
+					return { content: [{ type: "text", text: "已批准本次" }], details: { decision: "allow" } };
 				case "始终拒绝": {
 					permissions.push({ pattern: key, action: "deny" });
 					return {
@@ -396,7 +396,7 @@ export default function (pi: ExtensionAPI) {
 					};
 				}
 				default:
-					return { content: [{ type: "text", text: "已拒绝" }] };
+					return { content: [{ type: "text", text: "已拒绝" }], details: { decision: "deny" } };
 			}
 		},
 	});
