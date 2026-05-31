@@ -142,13 +142,33 @@ function findMatchingRule(
 
 		if (!targetPath) continue;
 
-		// glob 匹配
-		if (minimatch(targetPath, rule.pathPattern, { nocase: false })) {
+		// 规范化路径：去掉 ./ 前缀
+		const normalizedPath = targetPath.startsWith('./') ? targetPath.slice(2) : targetPath;
+
+		// 对于 bash 命令，使用字符串包含检查（glob 不适用于命令参数）
+		if (toolName === "bash") {
+			// 将 glob 模式转为正则：* 匹配任意非空格字符，** 匹配任意路径（包括空格分隔的参数）
+			let pattern = rule.pathPattern;
+			// ** 在开头时，匹配任意前缀（包括空）
+			if (pattern.startsWith('**/')) {
+				pattern = pattern.replace('**/', '(?:.*\/)?');
+			}
+			pattern = pattern.replace(/\*\*/g, '.*');
+			pattern = pattern.replace(/\*/g, '[^ ]*');
+			const regex = new RegExp('^' + pattern + '$');
+			if (regex.test(normalizedPath)) {
+				return rule;
+			}
+			continue;
+		}
+
+		// 对于文件路径，使用 glob 匹配
+		if (minimatch(normalizedPath, rule.pathPattern, { nocase: false })) {
 			return rule;
 		}
 		// 也尝试匹配绝对路径展开
 		if (rule.pathPattern.startsWith("**")) {
-			const abs = path.resolve(targetPath);
+			const abs = path.resolve(normalizedPath);
 			if (minimatch(abs, rule.pathPattern)) {
 				return rule;
 			}
